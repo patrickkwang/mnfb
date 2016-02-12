@@ -3,12 +3,7 @@ classdef mirroredNormalFisherBinghamDist < normalFisherBinghamDist
 
 methods
 	function obj = mirroredNormalFisherBinghamDist(varargin)
-		obj = utilAssignStringValuePairs(obj,varargin{:});
-		obj = obj.sortEigenvectors();
-		
-		% compute normalization constant
-% 		obj.C = exp(logNormConstSP(2,obj.a,obj.B));
-    obj.C = 1;
+    obj = obj@normalFisherBinghamDist(varargin{:});
   end
 	
 	function val = pdf(obj,points)
@@ -19,37 +14,8 @@ methods
       points(:,inds) = bsxfun(@times,normr(points(:,inds)),sign(points(:,inds)*-obj.V(inds,sum(obj.d(1:i)))));
     end
     
-    % compute exponent
-    expt = obj.a'*points';
-    for i = 1:sum(obj.d)
-      expt = expt + obj.Z(i)*(obj.V(:,i)'*points').^2;
-    end
-    
-    % finish up
-		val = 1/obj.C*exp(expt)';
+    val = pdf@normalFisherBinghamDist(obj,points);
   end
-  
-  function mnfb = conditional(obj,d,points)
-    % d should be an nx1 array of indices
-    % points should be nx1 array of points
-    %
-    % We should check to make sure we're not trying to marginalize over a
-    % subset of linked directional variables. Do this.
-    
-    % fix variable counts
-    dCond = obj.d;
-    for i = 1:length(d)
-      j = find(d(i)<=cumsum(obj.d),1,'first');
-      dCond(j) = dCond(j)-1;
-    end
-
-    % break into block matrix
-    g = setdiff(1:sum(obj.d),d);
-    aCond = obj.a(g) + 2*obj.B(g,d)*points';
-    BCond = obj.B(g,g);
-    
-    mnfb = utilAssignStringValuePairs(obj,'d',dCond,'a',aCond,'B',BCond);
-	end
 	
 	function mnfb = marginal(obj,d)
     % d should be an nx1 array of indices
@@ -76,76 +42,112 @@ methods
 		n = 1000;
 		t = linspace(0,2*pi,n+1)'; t = t(1:end-1);
 		x = [cos(t),sin(t)];
-		b = normalFisherBinghamDist('d',[0,2],'B',obj.B(d,d),'a',[0;0]);
+		b = mirroredNormalFisherBinghamDist('d',[0,2],'B',obj.B(d,d),'a',[0;0]);
 		p = b.pdf(x);
 		m = x'*bsxfun(@times,x,p)*(t(2)-t(1));
 		
     BMarg = obj.B(g,g)+2*obj.B(g,d)*m*obj.B(d,g);
 		
-    mnfb = utilAssignStringValuePairs(obj,'d',dMarg,'B',BMarg,'mu',modeMarg);
+    mnfb = mirroredNormalFisherBinghamDist('d',dMarg,'B',BMarg,'mu',modeMarg);
 		
-	end
+  end
+  
+  function x = sample(obj,n,burnin)
+    if nargin<3
+      burnin = 100;
+    end
+    
+    addnoise = @(x,stdv)x+randn(size(x)).*stdv(:);
+    prop = @(x)addnoise(x(1:obj.d(1)),1./sqrt(-1/2*obj.Z(1:obj.d(1))));
+    for i = 2:length(obj.d)
+      prop = @(x)cat(1,prop(x),normc(addnoise(x(sum(obj.d(1:i-1))+(1:obj.d(i))),3)));
+    end
+
+    m = 0;
+    x = zeros(n,sum(obj.d));
+
+    sample = obj.mu;
+    prevLike = -Inf;
+    while m<n+burnin
+      candidate = prop(sample);
+      %logLike = sum(bpLikelihood(candidate,mode,Y));
+      logLike = log(obj.pdf(candidate'));
+      r = logLike-prevLike;
+      if r>0 || exp(r)>rand
+        m = m+1
+        sample = candidate;
+        if m>burnin
+          x(m-burnin,:) = sample;
+        end
+        prevLike = logLike;
+      else
+
+      end
+    end
+  end
   
   function bingham = approximate(obj)
     x = obj.mode;
-    B = (-obj.a*x' - x*obj.a' - obj.a'*x*(eye(2) - 3*(x*x'))...
-      +2*obj.B - 4*obj.B*(x*x') - 4*(x*x')*obj.B - 2*x'*obj.B*x*(eye(2) - 4*(x*x')))/2;
-    [V,Z] = eig(B);
-    bingham = utilAssignStringValuePairs(obj,'d',[0,2],'B',B,'a',[0;0]);
-  end
-  
-  function px = hs(obj)
-    % this is designed for a normal-Bingham distribution (d=[1,2])
-    % infer the angle from the eigenvectors (hue)
-    % take the first eigenvalue to represent the concentration (saturation)
     
-		ang = atan2(obj.V(2,2),obj.V(1,2))*2;
-		while ang>=2*pi
-			ang = ang-2*pi;
-		end
-		while ang<0
-			ang = ang+2*pi;
-		end
-    px(1) = ang/(2*pi);
-    px(2) = 1-exp(obj.Z(1));
+    % if mode is along the minor axis, enforce zero precision
+    if all(abs(x*sign(x(1))-obj.V(:,1)*sign(obj.V(1,1)))<(2*eps))
+      B = zeros(2);
+    else
+      B = (-obj.a*x' - x*obj.a' - obj.a'*x*(eye(2) - 3*(x*x'))...
+        +2*obj.B - 4*obj.B*(x*x') - 4*(x*x')*obj.B - 2*x'*obj.B*x*(eye(2) - 4*(x*x')))/2;
+    end
     
+    bingham = mirroredNormalFisherBinghamDist('d',[0,2],'B',B,'a',[0;0]);
   end
 		
 end
 
 methods (Static)
   function test()
+%     Z = [-2,-2];
+%     theta = pi/4;
+%     V = [cos(theta),-sin(theta);sin(theta),cos(theta)];
+%     mnfb = mirroredNormalFisherBinghamDist('d',[2,0],...
+%       'V',V,...
+%       'Z',Z,...
+%       'mu',[0,0]);
+%     plot(mnfb)
+%     samples = mnfb.sample(100);
+%     hold on, scatter(samples(:,1),samples(:,2)), hold off
+
+%     Z = [-7, 0];
+%     theta = -pi/4;
+%     V = [cos(theta),-sin(theta);sin(theta),cos(theta)];
+%     mnfb = mirroredNormalFisherBinghamDist('d',[0,2],...
+%       'V',V,...
+%       'Z',Z,...
+%       'mu',[0,0]);
+%     plot(mnfb)
+%     samples = mnfb.sample(100);
+%     hold on, scatter(samples(:,1),samples(:,2)), hold off
+    
 %     Z = [-2, -10, 0];
 %     ry = -pi/4;
 %     rz = pi/6; % rotates about z-axis
 %     Ry = RotationMatrix.Rz(ry);
 %     Rz = RotationMatrix.Rx(rz);
 %     V = Rz*Ry;
-%     mnfb = mirroredNormalFisherBinghamDist('V',V,...
+%     mnfb = mirroredNormalFisherBinghamDist('d',[1,2],...
+%       'V',V,...
 %       'Z',Z,...
 %       'mu',[10,0,0]);
-%     figure(1), plot3(mnfb)
+%     figure(1), plot(mnfb)
+%     samples = mnfb.sample(100);
+%     hold on, scatter3(samples(:,2),samples(:,3),samples(:,1)), hold off
 %     mnfbCond = mnfb.conditional(1,9);
-%     figure(2), plot3(mnfbCond)
+%     figure(2), plot(mnfbCond)
 %     mnfbAppx = mnfbCond.approximate;
-%     figure(3), plot3(mnfbAppx)
+%     figure(3), plot(mnfbAppx)
 %     mnfbMarg = mnfb.marginal([2,3]);
-%     figure(4), plot3(mnfbMarg)
-%     % plot with colors
-% 		mu = -1/2*(mnfbMarg.B\mnfbMarg.a);
-% 		zs = mu+1/sqrt(-mnfbMarg.B)*linspace(-3,3,100)';
-% 		v = mnfbMarg.pdf(zs);
-% 		for i = 1:100
-% 			mnfbCond = mnfb.conditional(1,zs(i));
-% 			mnfbAppx = mnfbCond.approximate;
-% 			hs(i,:) = mnfbAppx.hs;
-% 		end
-% 		hsv = cat(2,hs,v/max(v));
-% 		rgb = hsv2rgb(permute(hsv,[1,3,2]));
-% 		figure(5), imagesc(rgb)
+%     figure(4), plot(mnfbMarg)
 		
-    Z = [-2, -2, -10, 0];
-		Ry = RotationMatrix('euler',[2.1847 0.9425 3.6825]); %rand(1,3)
+    Z = [-2, -2, -30, 0];
+		Ry = RotationMatrix('euler',[2.1847 0.9425 3.6825]); %rand(1,3)); %
 		Ry = blkdiag(Ry.R,1);
 		Rz = RotationMatrix.Rx(pi/3);
 		Rz = blkdiag(1,Rz);
@@ -154,29 +156,17 @@ methods (Static)
       'Z',Z,...
       'mu',[10,10,0,0],...
 			'd',[2,2]);
+    figure(1), plot(mnfb)
+    samples = mnfb.sample(100);
+    scale = max(max(samples(:,1))-min(samples(:,1)),max(samples(:,2))-min(samples(:,2)))/20;
+    samples(:,3:4) = [samples(:,3).^2-samples(:,4).^2,2*samples(:,3).*samples(:,4)];
+    hold on
+    arrow(samples(:,1),samples(:,2),samples(:,3)*scale,samples(:,4)*scale,scale/3,'Color',0.9*ones(1,3))
+    hold off
     mnfbCond = mnfb.conditional(1,10);
-    figure(2), plot3(mnfbCond)
+    figure(2), plot(mnfbCond)
     mnfbMarg = mnfb.marginal([3,4]);
-    figure(4), plot3(mnfbMarg)
-    % plot with colors
-		mu = -1/2*(mnfbMarg.B\mnfbMarg.a);
-		x = mu(1)+1/sqrt(-mnfbMarg.B(1,1))*linspace(3,-3,100)';
-		y = mu(2)+1/sqrt(-mnfbMarg.B(2,2))*linspace(-3,3,100)';
-		[X,Y] = meshgrid(x,y);
-		samples = [X(:),Y(:)];
-		v = mnfbMarg.pdf(samples);
-		hs = nan(size(samples,1),2);
-		for i = 1:size(samples,1)
-			mnfbCond = mnfb.conditional([1,2],samples(i,:));
-			mnfbAppx = mnfbCond.approximate;
-			hs(i,:) = mnfbAppx.hs;
-			if mod(i,10)==0
-				fprintf('%d of %d\n',i,size(samples,1));
-			end
-		end
-		hsv = cat(2,hs,v/max(v));
-		rgb = hsv2rgb(reshape(hsv,[100,100,3]));
-		figure(5), imagesc(rgb)
+    figure(3), plot(mnfbMarg)
   end
 end
 
