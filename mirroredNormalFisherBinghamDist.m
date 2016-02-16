@@ -11,7 +11,9 @@ methods
     
     for i = 2:length(obj.d)
       inds = sum(obj.d(1:i-1))+1:sum(obj.d(1:i));
-      points(:,inds) = bsxfun(@times,normr(points(:,inds)),sign(points(:,inds)*-obj.V(inds,sum(obj.d(1:i)))));
+      signs = sign(points(:,inds)*-obj.V(inds,sum(obj.d(1:i))));
+      signs(signs==0) = 1;
+      points(:,inds) = bsxfun(@times,normr(points(:,inds)),signs);
     end
     
     val = pdf@normalFisherBinghamDist(obj,points);
@@ -96,8 +98,10 @@ methods (Static)
     hold off
     mnfbCond = mnfb.conditional(1,10);
     figure(2), plot(mnfbCond)
+    title('Conditioned on one Euclidean component')
     mnfbMarg = mnfb.marginal([3,4]);
     figure(3), plot(mnfbMarg)
+    title('Marginalized over directional components')
   end
 end
 

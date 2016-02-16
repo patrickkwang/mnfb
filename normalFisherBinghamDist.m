@@ -1,5 +1,6 @@
 classdef normalFisherBinghamDist
-% this generalizes BinghamDist, FisherBinghamDist, and normalBinghamDist
+% this generalizes the Bingham, Fisher-Bingham, and normal-Bingham
+% distributions
   
 properties
   % dimension vector d = [n,m1,m2,...]
@@ -30,7 +31,7 @@ end
 
 methods
 	function obj = normalFisherBinghamDist(varargin)
-		obj = prtUtilAssignStringValuePairs(obj,varargin{:});
+		obj = utilAssignStringValuePairs(obj,varargin{:});
 		obj = obj.sortEigenvectors();
 		
 		% compute normalization constant
@@ -76,8 +77,7 @@ methods
     % points should be an nxd matrix
     
     % compute exponent
-    expt = points*obj.a;
-    expt = expt + (points*obj.V).^2*obj.Z;
+    expt = points*obj.a + (points*obj.V).^2*obj.Z;
     
     % finish up
 		val = exp(expt-obj.logC);

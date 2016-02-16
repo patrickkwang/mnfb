@@ -19,7 +19,7 @@ options.colormap = colormap('parula');
 options.nLevels = 5;
 
 % parse input options
-options = prtUtilSimpleInputParser(options,varargin);
+options = utilSimpleInputParser(options,varargin);
 
 % construct contours from values
 [x,y] = meshgrid(1:size(V,2),1:size(V,1));

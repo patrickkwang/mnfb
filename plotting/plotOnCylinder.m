@@ -18,7 +18,7 @@ options.cmap = permute(rgb,[2,3,1]);
 % options.cmap = cmap(20:end,:);
 
 % parse input options
-options = prtUtilSimpleInputParser(options,varargin);
+options = utilSimpleInputParser(options,varargin);
 
 % plot the contour
 contour3d(X,Y,Z,V,'nLevels',options.nLevels-1,'colormap',options.cmap(ceil(size(cmap,1)/options.nLevels):end,:))
