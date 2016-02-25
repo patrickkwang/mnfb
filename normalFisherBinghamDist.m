@@ -152,34 +152,10 @@ methods
       mnfb = normalFisherBinghamDist('d',dMarg,'B',BMarg,'mu',modeMarg);
     end
   end
-
-	function plot2(obj)
-		% for distributions on the unit circle, plot theta vs p(theta)
-		assert(obj.d(1)==0 && obj.d(2)==2, 'should be a Bingham distribution on S_1')
-    
-		% generate sample points
-		n = 10000;
-		t = linspace(0,2*pi,n+1)'; % t = t(1:end-1);
-		x = [-sin(t),cos(t)];
-		
-		% evaluate pdf at sample points
-		p = obj.pdf(x);
-		
-		% plot
-		h = scatter(x(:,1),x(:,2),6,p);
-		h.Parent.XTick = -1:1;
-		h.Parent.YTick = -1:1;
-		grid on
-		axis equal tight
-		
-		% labels
-		xlabel('x')
-		ylabel('y')
-  end
 	
 	function plot(obj)
 		% generate sample points
-    nThetas = 1000;
+    nThetas = 180;
     thetas = linspace(0,2*pi,nThetas+1);
     thetas = thetas(1:nThetas);
     
@@ -191,7 +167,7 @@ methods
       y = obj.mu(2)+1/sqrt(-mnfbMarg.B(2,2))*linspace(-3,3,n)';
       [X,Y] = meshgrid(x,y);
       samples = [X(:),Y(:)];
-      v = mnfbMarg.pdf(samples);
+      v = reshape(mnfbMarg.pdf(samples),size(X));
       h = nan(n^2,1);
       s = nan(n^2,1);
       modes = nan(n^2,2);
@@ -215,14 +191,25 @@ methods
           fprintf('plotting: %d of %d\n',i,size(samples,1));
         end
       end
-      hsv = cat(2,h/(2*pi),min(s,quantile(s,0.9))/quantile(s,0.9),v/max(v));
+      hsv = cat(2,h/(2*pi),min(s,quantile(s,0.9))/quantile(s,0.9),v(:)./max(v(:)));
       rgb = hsv2rgb(reshape(hsv,[n,n,3]));
-      im = imagesc(x,y,rgb);
+%       h = imagesc(x,y,rgb);
+      downsamp = 2;
+      arrowLength = (Y(2)-Y(1))*downsamp;
+      angles = reshape(atan2(modes(:,2),modes(:,1))*2,size(X));
+      h = arrow(X(1:downsamp:end,1:downsamp:end)',...
+        Y(1:downsamp:end,1:downsamp:end)',...
+        arrowLength*cos(angles(1:downsamp:end,1:downsamp:end)),...
+        arrowLength*sin(angles(1:downsamp:end,1:downsamp:end)),...
+        arrowLength/4,...
+        rgb(1:downsamp:end,1:downsamp:end,:));
+      h(1).Parent.Color = [0,0,0];
+      
       xlabel('x')
       ylabel('y')
       
       % fix axis
-      ax(1) = im.Parent;
+      ax(1) = h.Parent;
       ax(1).Position = [ax(1).Position(1),ax(1).Position(2),ax(1).Position(3)-0.05,ax(1).Position(4)-0.1];
       axis xy equal tight
       
@@ -231,11 +218,12 @@ methods
       
       % add hue colorbar
       ax(2) = axes('Units','pixels','Position',[pos(1)+pos(3),pos(2),30,pos(4)]);
-      imagesc(permute(colormap('hsv'),[1,3,2]))
+      imagesc([],linspace(0,2*pi,64),permute(colormap('hsv'),[1,3,2]))
       ax(2).YAxisLocation='right';
       ax(2).XTick=[];
-      ax(2).YTick = pi/3*(0:6)/(2*pi)*64;
-      ax(2).YTickLabel = {'0','\pi/3','2\pi/3','\pi','4\pi/3','5\pi/3','2\pi'};
+      tickLabelsToPiFractions(ax(2),'y',3)
+%       ax(2).YTick = pi/3*(0:6)/(2*pi)*64;
+%       ax(2).YTickLabel = {'0','\pi/3','2\pi/3','\pi','4\pi/3','5\pi/3','2\pi'};
       ylabel('angle (hue)')
       
       % add saturation colorbar
@@ -249,9 +237,6 @@ methods
       
       % focus on main axis
       axes(ax(1))
-%       downsamp = floor(n/12.5);
-%       angles = atan2(modes(1:downsamp:end,2),modes(1:downsamp:end,1))*2;
-%       figure, quiver(X(1:downsamp:end)',Y(1:downsamp:end)',cos(angles).*v(1:downsamp:end)/max(v),sin(angles).*v(1:downsamp:end)/max(v))
 		elseif obj.d(1)==1 && obj.d(2)==2 % cylinder
       nZs = 100;
       zs = obj.mu(1)+1/sqrt(-obj.B(1,1))*linspace(-3,3,nZs); % assumes mean of 10
@@ -264,7 +249,7 @@ methods
 
       % plot on cylinder
       zStd = 1/sqrt(-obj.B(1,1));
-      options = struct('camPos',obj.mode([2,3,1]).*[3,3,1]'+[0,0,4*zStd]',...
+      options = struct('camPos',obj.mode([2,3,1]).*[3,3,1]'+[0,0,8*zStd]',...
         'cmap',bsxfun(@times,linspace(0.8,0,64)',[1,1,1]));
       plotOnCylinder(cos(T),sin(T),X,like,options)
       
@@ -304,15 +289,19 @@ methods
       p = obj.pdf(x);
 
       % plot
-      plot3(x(:,1),x(:,2),p)
-
-      % side bars
-      hold on
-      plot3(x(:,1),x(:,2),zeros(size(p)));
-      stem3(x(round(1:nThetas/90:end),1),...
-        x(round(1:nThetas/90:end),2),...
-        p(round(1:nThetas/90:end)),'Marker','none')
-      hold off
+      h = plot3([x(round(1:nThetas/90:end),1),x(round(1:nThetas/90:end),1)]',...
+        [x(round(1:nThetas/90:end),2),x(round(1:nThetas/90:end),2)]',...
+        [zeros(size(p(round(1:nThetas/90:end)))),p(round(1:nThetas/90:end))]',...
+        x(:,1),x(:,2),zeros(size(p)),...
+        x(:,1),x(:,2),p,...
+        'Marker','none');
+      h(1).Parent.CameraPosition = [obj.mode*3;1]';
+      colors = get(groot,'DefaultAxesColorOrder');
+      for i = 1:length(h)-2
+        h(i).Color = colors(3,:);
+      end
+      h(end-1).Color = colors(2,:);
+      h(end).Color = colors(1,:);
 
       % labels
       set(gca,'XTick',-0.9:0.3:0.9)
@@ -320,8 +309,62 @@ methods
       grid on
       xlabel('q_1')
       ylabel('q_2')
-      zlabel('p([x,y]|a,B)')
+      zlabel('p(q|M,Z)')
     end
+  end
+
+	function plot1(obj,varargin)
+		% for distributions on the unit circle, plot theta vs p(theta)
+		assert(obj.d(1)==0 && obj.d(2)==2, 'should be a Bingham distribution on S_1')
+    
+		% generate sample points
+		n = 1000;
+		t = linspace(0,2*pi,n+1)'; % t = t(1:end-1);
+		x = [-sin(t),cos(t)];
+		
+		% evaluate pdf at sample points
+		p = obj.pdf(x);
+		
+		% plot
+		plot(2*t,p,varargin{:})
+    xlim([0,4*pi])
+		
+		% labels
+		xlabel('\theta')
+		ylabel('p(\theta|M,Z)')
+  end
+
+	function plot2(obj)
+		% for distributions on the unit circle, plot theta vs p(theta)
+		assert(obj.d(1)==0 && obj.d(2)==2, 'should be a Bingham distribution on S_1')
+    
+    x = linspace(-1.5,1.5,100);
+    y = linspace(-1.5,1.5,100);
+    [X,Y] = meshgrid(x,y);
+    im = exp(([X(:),Y(:)]*obj.V).^2*obj.Z);
+    h = imagesc(x,y,reshape(im,size(X)));
+    h.AlphaData = 0.2;
+    
+		% generate sample points
+		n = 1000;
+		t = linspace(0,2*pi,n+1)'; % t = t(1:end-1);
+		x = [-sin(t),cos(t)];
+		
+		% evaluate pdf at sample points
+		p = obj.pdf(x);
+		
+		% plot
+    hold on
+		h = scatter(x(:,1),x(:,2),6,p);
+    hold off
+		h.Parent.XTick = -1:1;
+		h.Parent.YTick = -1:1;
+		grid on
+		axis equal tight
+		
+		% labels
+		xlabel('x')
+		ylabel('y')
   end
   
   function val = get.B(obj)
@@ -464,9 +507,9 @@ methods (Static)
     nfb = normalFisherBinghamDist('V',V,...
       'Z',Z,...
       'mu',[10,0,0]);
-    figure(1), plot3(nfb)
+    figure(1), plot(nfb)
     nfbCond = nfb.conditional(1,10.5);
-    figure(2), plot3(nfbCond)
+    figure(2), plot(nfbCond)
     nfbCond.mode
   end
 end

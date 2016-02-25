@@ -4,6 +4,10 @@ classdef mirroredNormalFisherBinghamDist < normalFisherBinghamDist
 methods
 	function obj = mirroredNormalFisherBinghamDist(varargin)
     obj = obj@normalFisherBinghamDist(varargin{:});
+    if nargout==0
+      clear obj
+      mirroredNormalFisherBinghamDist.test
+    end
   end
 	
 	function val = pdf(obj,points)
@@ -37,6 +41,7 @@ end
 
 methods (Static)
   function test()
+    close all
 %     Z = [-2,-2];
 %     theta = pi/4;
 %     V = [cos(theta),-sin(theta);sin(theta),cos(theta)];
@@ -70,9 +75,9 @@ methods (Static)
 %       'Z',Z,...
 %       'mu',[10,0,0]);
 %     figure(1), plot(mnfb)
-%     samples = mnfb.sample(100);
-%     hold on, scatter3(samples(:,2),samples(:,3),samples(:,1)), hold off
-%     mnfbCond = mnfb.conditional(1,9);
+% %     samples = mnfb.sample(100);
+% %     hold on, scatter3(samples(:,2),samples(:,3),samples(:,1)), hold off
+%     mnfbCond = mnfb.conditional(1,10.5);
 %     figure(2), plot(mnfbCond)
 %     mnfbAppx = mnfbCond.approximate;
 %     figure(3), plot(mnfbAppx)
@@ -89,13 +94,14 @@ methods (Static)
       'Z',Z,...
       'mu',[10,10,0,0],...
 			'd',[2,2]);
-    figure(1), plot(mnfb)
-    samples = mnfb.sample(100);
-    scale = max(max(samples(:,1))-min(samples(:,1)),max(samples(:,2))-min(samples(:,2)))/20;
-    samples(:,3:4) = [samples(:,3).^2-samples(:,4).^2,2*samples(:,3).*samples(:,4)];
-    hold on
-    arrow(samples(:,1),samples(:,2),samples(:,3)*scale,samples(:,4)*scale,scale/3,'Color',0.9*ones(1,3))
-    hold off
+%     figure(1), plot(mnfb)
+%     samples = mnfb.sample(100);
+%     scale = max(max(samples(:,1))-min(samples(:,1)),max(samples(:,2))-min(samples(:,2)))/20;
+%     samples(:,3:4) = [samples(:,3).^2-samples(:,4).^2,2*samples(:,3).*samples(:,4)];
+%     hold on
+%     arrow(samples(:,1),samples(:,2),samples(:,3)*scale,samples(:,4)*scale,scale/3,...
+%       1*ones(100,3))
+%     hold off
     mnfbCond = mnfb.conditional(1,10);
     figure(2), plot(mnfbCond)
     title('Conditioned on one Euclidean component')
