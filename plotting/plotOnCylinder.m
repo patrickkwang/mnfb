@@ -23,7 +23,7 @@ options = utilSimpleInputParser(options,varargin);
 % plot the contour
 contour3d(X,Y,Z,V,...
   'nLevels',options.nLevels-1,...
-  'colormap',options.cmap(ceil(size(cmap,1)/options.nLevels):end,:))
+  'colormap',options.cmap)
 
 % plot the actual cylinder
 if options.plotCylinder

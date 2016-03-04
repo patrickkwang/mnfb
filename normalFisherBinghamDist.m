@@ -36,26 +36,30 @@ methods
 		
 		% compute normalization constant
 		obj.logC = obj.logNormConst;
+    
+    if nargout==0
+      clear obj
+      normalFisherBinghamDist.test
+    end
   end
 	
   function val = logNormConst(obj)
-    i = 1:obj.d(1);
-    j = obj.d(1)+1:sum(obj.d);
-    normalPart = obj.d(1)/2*log(2*pi)-1/2*log(det(-2*obj.B(i,i)));
+    d = 1:obj.d(1);
+    g = obj.d(1)+1:sum(obj.d);
+    normalPart = obj.d(1)/2*log(2*pi)-1/2*log(det(-2*obj.B(d,d)));
     if sum(obj.d)>obj.d(1)
-%       obj.C = obj.C*exp(logNormConstSP(sum(obj.d(2:end)),...
-%         zeros(sum(obj.d(2:end)),1),...
-%         obj.B(g,g)-obj.B(g,d)/obj.B(d,d)*obj.B(d,g)));
-      b = obj.B(j,j)-obj.B(j,i)/obj.B(i,i)*obj.B(i,j);
-      [~,z] = eig(b);
-      binghamPart = log(bingham_F(z(1)));
-      if any(obj.a)
-        fisherPart = -1/4*obj.a'*pinv(obj.B)*obj.a;
-      else
-        fisherPart = 0;
-      end
+      b = obj.B(g,g)-obj.B(g,d)/obj.B(d,d)*obj.B(d,g);
+%       [~,z] = eig(b);
+%       binghamPart = log(bingham_F(z(1))); % only works for a subset of parameters
+      binghamPart = logNormConstSP(sum(obj.d(2:end)),...
+        zeros(sum(obj.d(2:end)),1),...
+        b);
     else
       binghamPart = 0;
+    end
+    if any(obj.a)
+      fisherPart = -1/4*obj.a'*pinv(obj.B)*obj.a;
+    else
       fisherPart = 0;
     end
     val = normalPart+binghamPart+fisherPart;
@@ -74,13 +78,17 @@ methods
 	end
 	
 	function val = pdf(obj,points)
+    val = exp(obj.logPdf(points));
+  end
+  
+  function val = logPdf(obj,points)
     % points should be an nxd matrix
     
     % compute exponent
     expt = points*obj.a + (points*obj.V).^2*obj.Z;
     
     % finish up
-		val = exp(expt-obj.logC);
+		val = expt-obj.logC;
   end
   
   function nfb = conditional(obj,d,points)
@@ -117,7 +125,9 @@ methods
     
     % this is a bit of a hack
     % - these components are very small but not below eps
-		assert(~any(abs(obj.mu(obj.d(1)+1:end)/obj.mu(1))>10*eps),'There should be no Fisher components.')  
+		if any(abs(obj.mu(obj.d(1)+1:end)/obj.mu(1))>10*eps)
+      warning('There should be no Fisher components.')
+    end
 		
     % fix variable counts
     dMarg = obj.d;
@@ -133,17 +143,28 @@ methods
 		modeMarg = mode(g);
 		
 		% compute second moment
-		n = 1000;
-		t = linspace(0,2*pi,n+1)'; t = t(1:end-1);
-		x = [cos(t),sin(t)];
+		n = 180;
+    
+    % this has been standard
+% 		t = linspace(0,2*pi,n+1)'; t = t(1:end-1);
+%     x = [cos(t),sin(t)];
+
+    % this may work better for high precisions (and worse for low)
+    [V,Z] = eig(obj.B(d,d));
+    z = diag(Z);
+    [~,minInd] = min(z);
+    [~,maxInd] = max(z);
+    t = linspace(-4,4,n)'*sqrt(-2/z(minInd))+atan2(V(2,maxInd),V(1,maxInd));
+		x = [cos(t),sin(t)]; x = cat(1,x,-x);
+        
     if isa(obj,'mirroredNormalFisherBinghamDist')
       b = mirroredNormalFisherBinghamDist('d',[0,2],'B',obj.B(d,d),'a',[0;0]);
     else
       b = normalFisherBinghamDist('d',[0,2],'B',obj.B(d,d),'a',[0;0]);
     end
-		p = b.pdf(x);
+		lp = b.logPdf(x); p = exp(lp); %exp(lp-prtUtilSumExp(lp));
 		m = x'*bsxfun(@times,x,p)*(t(2)-t(1));
-		
+    
     BMarg = obj.B(g,g)+2*obj.B(g,d)*m*obj.B(d,g);
 		
     if isa(obj,'mirroredNormalFisherBinghamDist')
@@ -156,7 +177,7 @@ methods
 	function plot(obj)
 		% generate sample points
     nThetas = 180;
-    thetas = linspace(0,2*pi,nThetas+1);
+    thetas = linspace(0,2*pi,nThetas+1)';
     thetas = thetas(1:nThetas);
     
     % the follow allows for plotting (Fisher-)Bingham distributions, too
@@ -193,25 +214,25 @@ methods
       end
       hsv = cat(2,h/(2*pi),min(s,quantile(s,0.9))/quantile(s,0.9),v(:)./max(v(:)));
       rgb = hsv2rgb(reshape(hsv,[n,n,3]));
-%       h = imagesc(x,y,rgb);
-      downsamp = 2;
-      arrowLength = (Y(2)-Y(1))*downsamp;
-      angles = reshape(atan2(modes(:,2),modes(:,1))*2,size(X));
-      h = arrow(X(1:downsamp:end,1:downsamp:end)',...
-        Y(1:downsamp:end,1:downsamp:end)',...
-        arrowLength*cos(angles(1:downsamp:end,1:downsamp:end)),...
-        arrowLength*sin(angles(1:downsamp:end,1:downsamp:end)),...
-        arrowLength/4,...
-        rgb(1:downsamp:end,1:downsamp:end,:));
-      h(1).Parent.Color = [0,0,0];
+      h = imagesc(x,y,rgb);
+%       downsamp = 2;
+%       arrowLength = (Y(2)-Y(1))*downsamp;
+%       angles = reshape(atan2(modes(:,2),modes(:,1))*2,size(X));
+%       h = arrow(X(1:downsamp:end,1:downsamp:end)',...
+%         Y(1:downsamp:end,1:downsamp:end)',...
+%         arrowLength*v(1:downsamp:end,1:downsamp:end)/max(v(:)).*cos(angles(1:downsamp:end,1:downsamp:end)),...
+%         arrowLength*v(1:downsamp:end,1:downsamp:end)/max(v(:)).*sin(angles(1:downsamp:end,1:downsamp:end)),...
+%         arrowLength/4*v(1:downsamp:end,1:downsamp:end)/max(v(:)),...
+%         rgb(1:downsamp:end,1:downsamp:end,:));
+%       h(1).Parent.Color = [0,0,0];
       
-      xlabel('x')
-      ylabel('y')
+      xlabel('$x$')
+      ylabel('$y$')
       
       % fix axis
       ax(1) = h.Parent;
       ax(1).Position = [ax(1).Position(1),ax(1).Position(2),ax(1).Position(3)-0.05,ax(1).Position(4)-0.1];
-      axis xy equal tight
+      axis xy% equal tight
       
       ax(1).Units = 'pixels';
       pos = plotboxpos(ax(1));
@@ -250,12 +271,14 @@ methods
       % plot on cylinder
       zStd = 1/sqrt(-obj.B(1,1));
       options = struct('camPos',obj.mode([2,3,1]).*[3,3,1]'+[0,0,8*zStd]',...
-        'cmap',bsxfun(@times,linspace(0.8,0,64)',[1,1,1]));
+        'cmap',cat(2,linspace(0.8,0,64)',...
+          linspace(0.8,0,64)',...
+          linspace(0.8,0.8,64)'));
       plotOnCylinder(cos(T),sin(T),X,like,options)
       
-      xlabel('q_1')
-      ylabel('q_2')
-      zlabel('x')
+      xlabel('$q_1$')
+      ylabel('$q_2$')
+      zlabel('$x$')
 		elseif obj.d(1)==1 && obj.d(2)==0 % 1-D Gaussian
 			% generate sample points
 			x = -1/2/obj.B*obj.a+1/sqrt(-obj.B)*linspace(-3,3,1000)';
@@ -277,13 +300,13 @@ methods
 			
 			% display
 			imagesc(x,y,reshape(p,size(X)))
-      axis equal tight xy
-      xlabel('x')
-      ylabel('y')
+      axis xy% equal tight
+      xlabel('$x$')
+      ylabel('$y$')
       colormap('gray')
 			
     elseif obj.d(1)==0 && obj.d(2)==2 % classic Bingham
-      x = [cos(thetas(:)),sin(thetas(:))];
+      x = [cos(thetas([1:end,1])),sin(thetas([1:end,1]))];
       
       % evaluate pdf at sample points
       p = obj.pdf(x);
@@ -295,7 +318,6 @@ methods
         x(:,1),x(:,2),zeros(size(p)),...
         x(:,1),x(:,2),p,...
         'Marker','none');
-      h(1).Parent.CameraPosition = [obj.mode*3;1]';
       colors = get(groot,'DefaultAxesColorOrder');
       for i = 1:length(h)-2
         h(i).Color = colors(3,:);
@@ -303,13 +325,23 @@ methods
       h(end-1).Color = colors(2,:);
       h(end).Color = colors(1,:);
 
+      % perspective
+      littleSpin = -pi/6;
+      R = [cos(littleSpin), sin(littleSpin); -sin(littleSpin), cos(littleSpin)];
+      h(1).Parent.CameraPosition = 3*[R*obj.mode*2;0.5]';
+      h(1).Parent.Projection = 'perspective';
+      % axis equal
+      h(1).Parent.DataAspectRatio(2) = h(1).Parent.DataAspectRatio(1);
+      xlim([-1.1,1.1])
+      ylim([-1.1,1.1])
+      
       % labels
-      set(gca,'XTick',-0.9:0.3:0.9)
-      set(gca,'YTick',-0.9:0.3:0.9)
+      set(gca,'XTick',-1:0.5:1)
+      set(gca,'YTick',-1:0.5:1)
       grid on
-      xlabel('q_1')
-      ylabel('q_2')
-      zlabel('p(q|M,Z)')
+      xlabel('$q_1$')
+      ylabel('$q_2$')
+      zlabel('$p(q|M,Z)$')
     end
   end
 
@@ -328,10 +360,11 @@ methods
 		% plot
 		plot(2*t,p,varargin{:})
     xlim([0,4*pi])
+    tickLabelsToPiFractions(gca,'x',2)
 		
 		% labels
-		xlabel('\theta')
-		ylabel('p(\theta|M,Z)')
+		xlabel('$\theta$')
+		ylabel('$p(\theta|M,Z)$')
   end
 
 	function plot2(obj)
@@ -346,16 +379,19 @@ methods
     h.AlphaData = 0.2;
     
 		% generate sample points
-		n = 1000;
+		n = 250;
 		t = linspace(0,2*pi,n+1)'; % t = t(1:end-1);
 		x = [-sin(t),cos(t)];
 		
 		% evaluate pdf at sample points
-		p = obj.pdf(x);
+		p = exp((x*obj.V).^2*obj.Z);
+    parula = colormap('parula');
+    c = parula(ceil(p./max(p)*64),:);
 		
 		% plot
     hold on
-		h = scatter(x(:,1),x(:,2),6,p);
+		h = scatter(x(:,1),x(:,2),6,c,...
+      'MarkerFaceColor','flat');
     hold off
 		h.Parent.XTick = -1:1;
 		h.Parent.YTick = -1:1;
@@ -363,8 +399,8 @@ methods
 		axis equal tight
 		
 		% labels
-		xlabel('x')
-		ylabel('y')
+		xlabel('$x$')
+		ylabel('$y$')
   end
   
   function val = get.B(obj)
@@ -453,6 +489,9 @@ methods
           (-D*dx-abs(dy)*sqrt(dr^2-D^2))/dr^2]});
       end
 
+      % force real modes
+      mode_hat = cellfun(@(a){real(a)},mode_hat);
+      
       % pick the intersection with the greatest likelihood
       llhs = obj.pdf(cat(2,repmat(val(1:obj.d(1))',length(mode_hat),1),cat(2,mode_hat{:})'));
       [~,ind] = max(llhs);
@@ -507,10 +546,9 @@ methods (Static)
     nfb = normalFisherBinghamDist('V',V,...
       'Z',Z,...
       'mu',[10,0,0]);
-    figure(1), plot(nfb)
+    figure(1), plot(nfb), axis equal
     nfbCond = nfb.conditional(1,10.5);
     figure(2), plot(nfbCond)
-    nfbCond.mode
   end
 end
 

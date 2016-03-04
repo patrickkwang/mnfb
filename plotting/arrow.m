@@ -8,11 +8,12 @@ x = x(:);
 y = y(:);
 u = u(:);
 v = v(:);
+l = l(:);
 c = reshape(c,[],3);
 theta = pi/6;
 R = [cos(theta),sin(theta);-sin(theta),cos(theta)];
-uva = R*[u';v']; uva = bsxfun(@rdivide,uva,sqrt(sum(uva.^2,1))).*l;
-uvb = R'*[u';v']; uvb = bsxfun(@rdivide,uvb,sqrt(sum(uvb.^2,1))).*l;
+uva = normc(R*[u';v']); uva = [uva(1,:).*l';uva(2,:).*l'];
+uvb = normc(R'*[u';v']); uvb = [uvb(1,:).*l';uvb(2,:).*l'];
 
 % center the arrow
 x = x-u/2;

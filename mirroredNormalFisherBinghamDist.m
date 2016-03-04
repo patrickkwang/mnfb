@@ -3,14 +3,18 @@ classdef mirroredNormalFisherBinghamDist < normalFisherBinghamDist
 
 methods
 	function obj = mirroredNormalFisherBinghamDist(varargin)
-    obj = obj@normalFisherBinghamDist(varargin{:});
     if nargout==0
-      clear obj
       mirroredNormalFisherBinghamDist.test
+      return
     end
+    obj = obj@normalFisherBinghamDist(varargin{:});
   end
 	
 	function val = pdf(obj,points)
+    val = exp(obj.logPdf(points));
+  end
+  
+  function val = logPdf(obj,points)
     % points should be an nxd matrix
     
     for i = 2:length(obj.d)
@@ -20,7 +24,7 @@ methods
       points(:,inds) = bsxfun(@times,normr(points(:,inds)),signs);
     end
     
-    val = pdf@normalFisherBinghamDist(obj,points);
+    val = logPdf@normalFisherBinghamDist(obj,points);
   end
   
   function bingham = approximate(obj)
@@ -53,16 +57,16 @@ methods (Static)
 %     samples = mnfb.sample(100);
 %     hold on, scatter(samples(:,1),samples(:,2)), hold off
 
-%     Z = [-7, 0];
-%     theta = -pi/4;
+%     Z = [-3, 0];
+%     theta = -pi/3;
 %     V = [cos(theta),-sin(theta);sin(theta),cos(theta)];
 %     mnfb = mirroredNormalFisherBinghamDist('d',[0,2],...
 %       'V',V,...
 %       'Z',Z,...
 %       'mu',[0,0]);
-%     plot(mnfb)
-%     samples = mnfb.sample(100);
-%     hold on, scatter(samples(:,1),samples(:,2)), hold off
+%     figure(1), plot(mnfb), zlim([0,0.5])
+%     figure(2), plot1(mnfb,'k-')
+%     figure(3), plot2(mnfb)
     
 %     Z = [-2, -10, 0];
 %     ry = -pi/4;
@@ -74,15 +78,16 @@ methods (Static)
 %       'V',V,...
 %       'Z',Z,...
 %       'mu',[10,0,0]);
-%     figure(1), plot(mnfb)
+%     figure(1), plot(mnfb)%, axis equal
 % %     samples = mnfb.sample(100);
 % %     hold on, scatter3(samples(:,2),samples(:,3),samples(:,1)), hold off
-%     mnfbCond = mnfb.conditional(1,10.5);
-%     figure(2), plot(mnfbCond)
+%     mnfbCond = mnfb.conditional(1,9.3);
 %     mnfbAppx = mnfbCond.approximate;
-%     figure(3), plot(mnfbAppx)
+%     figure(2)
+%     subplot(2,1,1), plot(mnfbCond), axis equal
+%     subplot(2,1,2), plot(mnfbAppx), axis equal
 %     mnfbMarg = mnfb.marginal([2,3]);
-%     figure(4), plot(mnfbMarg)
+%     figure(3), plot(mnfbMarg)
 		
     Z = [-2, -2, -20, 0];
 		Ry = RotationMatrix('euler',[2.1847 0.9425 3.6825]); %rand(1,3)); %
@@ -103,7 +108,7 @@ methods (Static)
 %       1*ones(100,3))
 %     hold off
     mnfbCond = mnfb.conditional(1,10);
-    figure(2), plot(mnfbCond)
+    figure(2), plot(mnfbCond), axis equal
     title('Conditioned on one Euclidean component')
     mnfbMarg = mnfb.marginal([3,4]);
     figure(3), plot(mnfbMarg)

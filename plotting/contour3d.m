@@ -23,23 +23,35 @@ options = utilSimpleInputParser(options,varargin);
 
 %% shift to start at minimum
 % to avoid contours at the edge
-% first vertically
 [~,vInd] = min(sum(V,2));
 [~,hInd] = min(sum(V,1));
 V = circshift(V,-[vInd,hInd]);
 X = circshift(X,-[vInd,hInd]);
 Y = circshift(Y,-[vInd,hInd]);
 Z = circshift(Z,-[vInd,hInd]);
+topNbottom = mod([0,size(V,1)-1]-vInd,size(V,1))+1;
+while any(topNbottom<1)
+  topNbottom(topNbottom<1) = topNbottom(topNbottom<1)+size(V,1);
+end
+top = topNbottom(1);
+bottom = topNbottom(2);
 
 %% construct contours from values
 [x,y] = meshgrid(1:size(V,2),1:size(V,1));
 C = contourc(1:size(V,2),1:size(V,1),V,options.nLevels);
 [samples,levels] = deconstructContourMatrix(C);
 
-% sort by bigness and punch out holes
+% sort by bigness
 [~,order] = sort(-abs(levels));
 levels = levels(order);
 samples = samples(order);
+
+% simplify polygons
+for i = 1:length(samples)
+  samples{i} = reduce_poly(samples{i},20);
+end
+
+% punch out holes
 [holysamples,uncontained] = breakOverlappingShapes(samples);
 
 % cylinder granularity parameter
@@ -50,8 +62,10 @@ for i = 1:length(uncontained)
   lowBound(i) = max(min(samples{uncontained(i)}(1,:))-1,1);
   highBound(i) = min(max(samples{uncontained(i)}(1,:))+1,size(V,2));
   xd = [lowBound(i):spacing:highBound(i),highBound(i)];
-  sample = [xd,fliplr(xd),xd(1),samples{uncontained(i)}(1,[1:end,1]),xd(1),xd(1);
-    1*ones(1,length(xd)),size(V,1)*ones(1,length(xd)),1,samples{uncontained(i)}(2,[1:end,1]),1,1];
+  sample = [xd,fliplr(xd),xd(1),...
+    samples{uncontained(i)}(1,[1:end,1]),xd(1),xd(1);
+    bottom*ones(1,length(xd)),top*ones(1,length(xd)),bottom,...
+    samples{uncontained(i)}(2,[1:end,1]),bottom,bottom];
   holysamples = cat(2,holysamples,sample);
   levels = cat(2,levels,0);
 end
@@ -60,12 +74,11 @@ end
 [~,order] = sort(lowBound);
 lowBound = lowBound(order);
 highBound = highBound(order);
-
 if lowBound(1)>1
   xd = [1:spacing:lowBound(1),lowBound(1)];
   for i = 2:length(xd)
     sample = [xd(i-1),xd(i),xd(i),xd(i-1);
-      1,1,size(V,1),size(V,1)];
+      top,top,bottom,bottom];
     holysamples = cat(2,holysamples,sample);
     levels = cat(2,levels,0);
   end
@@ -74,7 +87,7 @@ for i = 2:length(lowBound)
   xd = [highBound(i-1):spacing:lowBound(i),lowBound(i)];
   for j = 2:length(xd)
     sample = [xd(j-1),xd(j),xd(j),xd(j-1);
-      1,1,size(V,1),size(V,1)];
+      top,top,bottom,bottom];
     holysamples = cat(2,holysamples,sample);
     levels = cat(2,levels,0);
   end
@@ -83,14 +96,14 @@ if highBound(end)<size(V,2)
   xd = [highBound(end):spacing:size(V,2),size(V,2)];
   for i = 2:length(xd)
     sample = [xd(i-1),xd(i),xd(i),xd(i-1);
-      1,1,size(V,1),size(V,1)];
+      top,top,bottom,bottom];
     holysamples = cat(2,holysamples,sample);
     levels = cat(2,levels,0);
   end
 end
 % connect the two edges
 sample = [1,size(V,2),size(V,2),1;
-  1,1,size(V,1),size(V,1)];
+  top,top,bottom,bottom];
 holysamples = cat(2,holysamples,sample);
 levels = cat(2,levels,0);
 
@@ -108,7 +121,10 @@ for i = 1:length(holysamples)
     xWarp = interp2(x,y,X,samples{i}(1,:),samples{i}(2,:));
     yWarp = interp2(x,y,Y,samples{i}(1,:),samples{i}(2,:));
     zWarp = interp2(x,y,Z,samples{i}(1,:),samples{i}(2,:));
-    plot3(xWarp,yWarp,zWarp,'Color',options.colormap(levels(i),:))
+    plot3([xWarp,xWarp(1)],...
+      [yWarp,yWarp(1)],...
+      [zWarp,zWarp(1)],...
+      'Color',options.colormap(levels(i),:))
   end
 	
 	% fill in
