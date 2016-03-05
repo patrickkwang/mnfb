@@ -38,7 +38,7 @@ methods
         +2*obj.B - 4*obj.B*(x*x') - 4*(x*x')*obj.B - 2*x'*obj.B*x*(eye(2) - 4*(x*x')))/2;
     end
     
-    bingham = mirroredNormalFisherBinghamDist('d',[0,2],'B',B,'a',[0;0]);
+    bingham = mirroredNormalFisherBinghamDist('d',[0,2],'B',B,'a',[0;0],'logC',1);
   end
 		
 end
@@ -99,7 +99,7 @@ methods (Static)
       'Z',Z,...
       'mu',[10,10,0,0],...
 			'd',[2,2]);
-%     figure(1), plot(mnfb)
+    figure(1), plot(mnfb)
 %     samples = mnfb.sample(100);
 %     scale = max(max(samples(:,1))-min(samples(:,1)),max(samples(:,2))-min(samples(:,2)))/20;
 %     samples(:,3:4) = [samples(:,3).^2-samples(:,4).^2,2*samples(:,3).*samples(:,4)];

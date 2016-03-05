@@ -34,8 +34,10 @@ methods
 		obj = utilAssignStringValuePairs(obj,varargin{:});
 		obj = obj.sortEigenvectors();
 		
-		% compute normalization constant
-		obj.logC = obj.logNormConst;
+    if isempty(obj.logC)
+      % compute normalization constant
+      obj.logC = obj.logNormConst;
+    end
     
     if nargout==0
       clear obj
@@ -111,9 +113,9 @@ methods
     BCond = obj.B(g,g);
     
     if isa(obj,'mirroredNormalFisherBinghamDist')
-      nfb = mirroredNormalFisherBinghamDist('d',dCond,'a',aCond,'B',BCond);
+      nfb = mirroredNormalFisherBinghamDist('d',dCond,'a',aCond,'B',BCond,'logC',1);
     else
-      nfb = normalFisherBinghamDist('d',dCond,'a',aCond,'B',BCond);
+      nfb = normalFisherBinghamDist('d',dCond,'a',aCond,'B',BCond,'logC',1);
     end
   end
 	
@@ -163,7 +165,7 @@ methods
       b = normalFisherBinghamDist('d',[0,2],'B',obj.B(d,d),'a',[0;0]);
     end
 		lp = b.logPdf(x); p = exp(lp); %exp(lp-prtUtilSumExp(lp));
-		m = x'*bsxfun(@times,x,p)*(t(2)-t(1));
+		m = x'*bsxfun(@times,x,p)*(t(2)-t(1))/(2*trapz(t,p(1:180))); % with extra normalization
     
     BMarg = obj.B(g,g)+2*obj.B(g,d)*m*obj.B(d,g);
 		
