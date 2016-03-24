@@ -53,9 +53,10 @@ methods
       b = obj.B(g,g)-obj.B(g,d)/obj.B(d,d)*obj.B(d,g);
 %       [~,z] = eig(b);
 %       binghamPart = log(bingham_F(z(1))); % only works for a subset of parameters
-      binghamPart = logNormConstSP(sum(obj.d(2:end)),...
-        zeros(sum(obj.d(2:end)),1),...
-        b);
+%       binghamPart = logNormConstSP(sum(obj.d(2:end)),...
+%         zeros(sum(obj.d(2:end)),1),...
+%         b);
+			binghamPart = 1;
     else
       binghamPart = 0;
     end
@@ -520,7 +521,7 @@ methods
     while m<n+burnin
       candidate = prop(sample);
       %logLike = sum(bpLikelihood(candidate,mode,Y));
-      logLike = log(obj.pdf(candidate'));
+      logLike = obj.logPdf(candidate');
       r = logLike-prevLike;
       if r>0 || exp(r)>rand
         m = m+1;
@@ -533,7 +534,12 @@ methods
 
       end
     end
-  end
+	end
+	
+	function val = moment2(obj)
+		samples = obj.sample(100);
+		val = samples'*samples/100;
+	end
 		
 end
 
